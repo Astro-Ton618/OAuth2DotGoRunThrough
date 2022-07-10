@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	client_id := ""
+
+	fmt.Println(Generate_permission_url(client_id))
 }
