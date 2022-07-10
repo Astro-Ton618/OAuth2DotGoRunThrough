@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -34,27 +33,27 @@ func Generate_permission_url(client_id string) string {
 	return (url)
 }
 
-func Generate_token_authorization(client_id string, client_secret string, authorization_code string) token_authorization_response {
-	values := map[string]string{"client_id": client_id, "client_secret": client_secret, "code": authorization_code, "redirect_uri": "urn:ietf:wg:oauth:2.0:oob", "grant_type": "authorization_code"}
-
-	json_data, err := json.Marshal(values)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	respo, err := http.Post("https://accounts.google.com/o/oauth2/token", "application/json", bytes.NewBuffer(json_data))
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	resp := map[string]string{}
-	json.NewDecoder(respo.Body).Decode(&resp)
-
+func Generate_token_authorization(client_id string, client_secret string, authorization_code string) (token_authorization_response, error) {
 	res := token_authorization_response{
 		refresh_token:                   "",
 		access_token:                    "",
 		access_token_expiration_seconds: "",
 	}
+
+	values := map[string]string{"client_id": client_id, "client_secret": client_secret, "code": authorization_code, "redirect_uri": "urn:ietf:wg:oauth:2.0:oob", "grant_type": "authorization_code"}
+
+	json_data, err := json.Marshal(values)
+	if err != nil {
+		return res, err
+	}
+
+	respo, err := http.Post("https://accounts.google.com/o/oauth2/token", "application/json", bytes.NewBuffer(json_data))
+	if err != nil {
+		return res, err
+	}
+
+	resp := map[string]string{}
+	json.NewDecoder(respo.Body).Decode(&resp)
 
 	if resp["expires_in"] == "" {
 		res = token_authorization_response{
@@ -70,5 +69,5 @@ func Generate_token_authorization(client_id string, client_secret string, author
 		}
 	}
 
-	return (res)
+	return res, nil
 }
