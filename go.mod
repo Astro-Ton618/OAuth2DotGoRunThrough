@@ -1,4 +1,4 @@
-module OAuth2DotGoRunThrough
+module gmail_imap
 
 go 1.18
 
