@@ -3,8 +3,17 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-message/mail"
+	"github.com/emersion/go-sasl"
 )
 
 type permission_url struct {
@@ -70,4 +79,90 @@ func Generate_token_authorization(client_id string, client_secret string, author
 	}
 
 	return res, nil
+}
+
+func Imap_authentication(email string, access_token string) error {
+	c, err_tls := client.DialTLS("imap.gmail.com:993", nil)
+	if err_tls != nil {
+		return (err_tls)
+	}
+
+	c.Authenticate(sasl.NewOAuthBearerClient(&sasl.OAuthBearerOptions{
+		Username: email,
+		Token:    access_token,
+		Host:     "imap.gmail.com",
+		Port:     993,
+	}))
+
+	mbox, err_select := c.Select("INBOX", false)
+	if err_select != nil {
+		return (err_select)
+	}
+
+	if mbox.Messages == 0 {
+		return errors.New("no message in mailbox")
+	}
+	seqSet := new(imap.SeqSet)
+	seqSet.AddNum(mbox.Messages)
+
+	var section imap.BodySectionName
+	items := []imap.FetchItem{section.FetchItem()}
+
+	messages := make(chan *imap.Message, 1)
+	go func() error {
+		if err_fetch := c.Fetch(seqSet, items, messages); err_fetch != nil {
+			return (err_fetch)
+		}
+		return nil
+	}()
+
+	msg := <-messages
+	if msg == nil {
+		return errors.New("server didn't returned message")
+	}
+
+	r := msg.GetBody(&section)
+	if r == nil {
+		return errors.New("server didn't returned message body")
+	}
+
+	mr, err_create_reader := mail.CreateReader(r)
+	if err_create_reader != nil {
+		return (err_create_reader)
+	}
+
+	header := mr.Header
+	if date, err_date := header.Date(); err_date == nil {
+		fmt.Println("Date:", date)
+	}
+	if from, err_from := header.AddressList("From"); err_from == nil {
+		fmt.Println("From:", from)
+	}
+	if to, err_to := header.AddressList("To"); err_to == nil {
+		fmt.Println("To:", to)
+	}
+	if subject, err_subject := header.Subject(); err_subject == nil {
+		fmt.Println("Subject:", subject)
+	}
+
+	for {
+		p, err_next_part := mr.NextPart()
+		if err_next_part == io.EOF {
+			break
+		} else if err_next_part != nil {
+			return (err_next_part)
+		}
+
+		switch h := p.Header.(type) {
+		case *mail.InlineHeader:
+			b, _ := ioutil.ReadAll(p.Body)
+			fmt.Println("Got text: " + string(b))
+		case *mail.AttachmentHeader:
+			filename, _ := h.Filename()
+			fmt.Println("Got attachment: " + filename)
+		}
+	}
+
+	c.Logout()
+	return (nil)
 }
