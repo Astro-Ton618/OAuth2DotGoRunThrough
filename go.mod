@@ -1,4 +1,4 @@
-module gmail_imap
+module gmail-imap
 
 go 1.18
 
