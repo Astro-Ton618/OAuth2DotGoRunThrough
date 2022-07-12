@@ -29,6 +29,11 @@ type token_authorization_response struct {
 	access_token_expiration_seconds string
 }
 
+type token_refresh_response struct {
+	access_token                    string
+	access_token_expiration_seconds string
+}
+
 func Generate_permission_url(client_id string) string {
 	params := permission_url{
 		client_id:     url.QueryEscape(client_id),
@@ -73,6 +78,41 @@ func Generate_token_authorization(client_id string, client_secret string, author
 	} else {
 		res = token_authorization_response{
 			refresh_token:                   resp["refresh_token"],
+			access_token:                    resp["access_token"],
+			access_token_expiration_seconds: resp["expires_in"],
+		}
+	}
+
+	return res, nil
+}
+
+func Refresh_token(client_id string, client_secret string, refresh_token string) (token_refresh_response, error) {
+	res := token_refresh_response{
+		access_token:                    "",
+		access_token_expiration_seconds: "",
+	}
+
+	values := map[string]string{"client_id": client_id, "client_secret": client_secret, "refresh_token": refresh_token, "grant_type": "refresh_token"}
+	json_data, err := json.Marshal(values)
+	if err != nil {
+		return res, err
+	}
+
+	respo, err := http.Post("https://accounts.google.com/o/oauth2/token", "application/json", bytes.NewBuffer(json_data))
+	if err != nil {
+		return res, err
+	}
+
+	resp := map[string]string{}
+	json.NewDecoder(respo.Body).Decode(&resp)
+
+	if resp["expires_in"] == "" {
+		res = token_refresh_response{
+			access_token:                    resp["access_token"],
+			access_token_expiration_seconds: "3600",
+		}
+	} else {
+		res = token_refresh_response{
 			access_token:                    resp["access_token"],
 			access_token_expiration_seconds: resp["expires_in"],
 		}
