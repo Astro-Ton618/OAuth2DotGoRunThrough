@@ -11,7 +11,7 @@ func main() {
 		fmt.Println(err_token)
 	}
 	fmt.Println(res)
-	err_imap := Imap_authentication("email", "access_token")
+	err_imap := Get_all_email_in_inbox("", "")
 	if err_imap != nil {
 		fmt.Println(err_imap)
 	}

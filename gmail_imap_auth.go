@@ -81,7 +81,7 @@ func Generate_token_authorization(client_id string, client_secret string, author
 	return res, nil
 }
 
-func Imap_authentication(email string, access_token string) error {
+func Get_all_email_in_inbox(email string, access_token string) error {
 	c, err_tls := client.DialTLS("imap.gmail.com:993", nil)
 	if err_tls != nil {
 		return (err_tls)
@@ -102,64 +102,67 @@ func Imap_authentication(email string, access_token string) error {
 	if mbox.Messages == 0 {
 		return errors.New("no message in mailbox")
 	}
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(mbox.Messages)
 
-	var section imap.BodySectionName
-	items := []imap.FetchItem{section.FetchItem()}
+	for i := uint32(1); i < mbox.Messages+1; i++ {
+		seqSet := new(imap.SeqSet)
+		seqSet.AddNum(i)
 
-	messages := make(chan *imap.Message, 1)
-	go func() error {
-		if err_fetch := c.Fetch(seqSet, items, messages); err_fetch != nil {
-			return (err_fetch)
-		}
-		return nil
-	}()
+		var section imap.BodySectionName
+		items := []imap.FetchItem{section.FetchItem()}
 
-	msg := <-messages
-	if msg == nil {
-		return errors.New("server didn't returned message")
-	}
+		messages := make(chan *imap.Message, 1)
+		go func() error {
+			if err_fetch := c.Fetch(seqSet, items, messages); err_fetch != nil {
+				return (err_fetch)
+			}
+			return nil
+		}()
 
-	r := msg.GetBody(&section)
-	if r == nil {
-		return errors.New("server didn't returned message body")
-	}
-
-	mr, err_create_reader := mail.CreateReader(r)
-	if err_create_reader != nil {
-		return (err_create_reader)
-	}
-
-	header := mr.Header
-	if date, err_date := header.Date(); err_date == nil {
-		fmt.Println("Date:", date)
-	}
-	if from, err_from := header.AddressList("From"); err_from == nil {
-		fmt.Println("From:", from)
-	}
-	if to, err_to := header.AddressList("To"); err_to == nil {
-		fmt.Println("To:", to)
-	}
-	if subject, err_subject := header.Subject(); err_subject == nil {
-		fmt.Println("Subject:", subject)
-	}
-
-	for {
-		p, err_next_part := mr.NextPart()
-		if err_next_part == io.EOF {
-			break
-		} else if err_next_part != nil {
-			return (err_next_part)
+		msg := <-messages
+		if msg == nil {
+			return errors.New("server didn't returned message")
 		}
 
-		switch h := p.Header.(type) {
-		case *mail.InlineHeader:
-			b, _ := ioutil.ReadAll(p.Body)
-			fmt.Println("Got text: " + string(b))
-		case *mail.AttachmentHeader:
-			filename, _ := h.Filename()
-			fmt.Println("Got attachment: " + filename)
+		r := msg.GetBody(&section)
+		if r == nil {
+			return errors.New("server didn't returned message body")
+		}
+
+		mr, err_create_reader := mail.CreateReader(r)
+		if err_create_reader != nil {
+			return (err_create_reader)
+		}
+
+		header := mr.Header
+		if date, err_date := header.Date(); err_date == nil {
+			fmt.Println("Date:", date)
+		}
+		if from, err_from := header.AddressList("From"); err_from == nil {
+			fmt.Println("From:", from)
+		}
+		if to, err_to := header.AddressList("To"); err_to == nil {
+			fmt.Println("To:", to)
+		}
+		if subject, err_subject := header.Subject(); err_subject == nil {
+			fmt.Println("Subject:", subject)
+		}
+
+		for {
+			p, err_next_part := mr.NextPart()
+			if err_next_part == io.EOF {
+				break
+			} else if err_next_part != nil {
+				return (err_next_part)
+			}
+
+			switch h := p.Header.(type) {
+			case *mail.InlineHeader:
+				b, _ := ioutil.ReadAll(p.Body)
+				fmt.Println("Got text: " + string(b))
+			case *mail.AttachmentHeader:
+				filename, _ := h.Filename()
+				fmt.Println("Got attachment: " + filename)
+			}
 		}
 	}
 
